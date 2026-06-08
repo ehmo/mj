@@ -1,0 +1,69 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build release notes
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          awk -v tag="$tag" '
+            $0 == "## " tag { found=1; next }
+            found && /^## / { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          test -s /tmp/release-notes.md
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean --release-notes /tmp/release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Render Homebrew formula
+        run: scripts/render-homebrew-formula.sh "${GITHUB_REF_NAME#v}" dist/checksums.txt
+      - name: Upload Homebrew formula
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" Formula/mj.rb --clobber
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          test -n "$HOMEBREW_TAP_GITHUB_TOKEN"
+          tmp="$(mktemp -d)"
+          auth="$(printf 'x-access-token:%s' "$HOMEBREW_TAP_GITHUB_TOKEN" | base64 | tr -d '\n')"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            clone --quiet https://github.com/ehmo/homebrew-mj.git "$tmp/homebrew-mj"
+          mkdir -p "$tmp/homebrew-mj/Formula"
+          cp -f Formula/mj.rb "$tmp/homebrew-mj/Formula/mj.rb"
+          cd "$tmp/homebrew-mj"
+          git config user.name "mj release bot"
+          git config user.email "mj-release@example.invalid"
+          git add Formula/mj.rb
+          if git diff --cached --quiet; then
+            echo "Homebrew tap already up to date"
+            exit 0
+          fi
+          git commit -m "mj ${GITHUB_REF_NAME}"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin main

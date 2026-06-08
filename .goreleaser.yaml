@@ -1,0 +1,44 @@
+version: 2
+
+project_name: mj
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: mj
+    main: ./cmd/mj
+    binary: mj
+    env: [CGO_ENABLED=0]
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+  - id: mj-mcp
+    main: ./cmd/mj-mcp
+    binary: mj-mcp
+    env: [CGO_ENABLED=0]
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    ids: [mj, mj-mcp]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [none*] # binaries only; keeps the Homebrew bottle sha stable across doc edits
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  draft: false
+  prerelease: auto

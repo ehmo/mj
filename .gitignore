@@ -1,0 +1,39 @@
+# Live-capture artifacts — contain real session tokens, email, prompts. NEVER commit.
+capture/profile/
+capture/netlog*.jsonl
+capture/probe*-out.json
+capture/STOP
+
+# Python venv used for the capture/Camoufox sidecar
+.venv/
+
+# Build output (anchored to repo root so they don't match cmd/mj-mcp/ source)
+/bin/
+/dist/
+/mjctl
+*.test
+
+# OS / editor
+.DS_Store
+*.swp
+.scratch-pad.md
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+
+# build binaries + local test output
+/mj
+/mj-mcp
+/testout/
+# capture data (may contain account data / prompts)
+capture/probe-shapes.txt
+capture/discovered-endpoints.txt
+
+# capture: RE scratch (harnesses, screenshots, account-specific data)
+capture/
+
+# Dev-internal tooling (not part of the public release)
+.beads/
+.claude/
